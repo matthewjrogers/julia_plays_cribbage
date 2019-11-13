@@ -158,7 +158,7 @@ function score_hand(hand_combn)
     return scored_hand
 end
 
-function peg(scored_hand::hand, peg_pile::hand, pile_score::Vector{Int64}, s_card, s_reason, passed_p1::Vector{Bool}, passed_p2::Vector{Bool}, turn::Vector{Int})
+function peg(scored_hand::hand, peg_pile::hand, pile_score::Vector{Int64}, s_card, s_reason, h_idx, passed_p1::Vector{Bool}, passed_p2::Vector{Bool}, turn::Vector{Int}, idx::Int)
 
     player = sum(turn) % 2 == 0 ? 2::Int : 1::Int
     # get all legal plays
@@ -256,7 +256,7 @@ function peg(scored_hand::hand, peg_pile::hand, pile_score::Vector{Int64}, s_car
         if maximum(card_scores) > 0
             push!(s_card, scored_hand.cards[findfirst(x->x == maximum(card_scores), card_scores)].rank)
             push!(s_reason, score_reasons[findfirst(x->x == maximum(card_scores), card_scores)])
-            #push!(h_idx, idx)
+            push!(h_idx, idx)
         end
         deleteat!(scored_hand, findfirst(x->x == maximum(card_scores), card_scores))
         if sum(pile_score) == 31
@@ -311,7 +311,7 @@ function peg(scored_hand::hand, peg_pile::hand, pile_score::Vector{Int64}, s_car
     end
 end
 
-function peg_random(scored_hand::hand, peg_pile::hand, pile_score::Vector{Int64}, s_card, s_reason, passed_p1::Vector{Bool}, passed_p2::Vector{Bool}, turn::Vector{Int})
+function peg_random(scored_hand::hand, peg_pile::hand, pile_score::Vector{Int64}, s_card, s_reason, h_idx, passed_p1::Vector{Bool}, passed_p2::Vector{Bool}, turn::Vector{Int}, idx::Int)
     player = sum(turn) % 2 == 0 ? 2::Int : 1::Int
     # get all legal plays
     pos_plays = Bool[]
@@ -377,7 +377,6 @@ function peg_random(scored_hand::hand, peg_pile::hand, pile_score::Vector{Int64}
             end
         end
 
-
         if length(reason) > 0
             full_reason = ""
             # concatenate reasons into single string
@@ -386,6 +385,7 @@ function peg_random(scored_hand::hand, peg_pile::hand, pile_score::Vector{Int64}
             end
             push!(s_reason, full_reason)
             push!(s_card, scored_hand.cards[play].rank)
+            push!(h_idx, idx)
         end
 
         push!(peg_pile, scored_hand.cards[play])
@@ -446,7 +446,11 @@ end
 ###########################################################
 full_rand_s_card = Int[]
 full_rand_s_reason = String[]
-for i in 1:1000000
+full_rand_h_idx = Int[]
+fr_p1_hands = String[]
+fr_p2_hands = String[]
+all_fr_h_idx = Int[]
+for i in 1:10000000
     cribbage_deck = deck()
     shuffle!(cribbage_deck)
 
@@ -455,6 +459,10 @@ for i in 1:1000000
     # random 4 card hands
     move!(cribbage_deck, hand1, 4)
     move!(cribbage_deck, hand2, 4)
+
+    push!(fr_p1_hands, join(hand1.cards))
+    push!(fr_p2_hands, join(hand2.cards))
+    push!(all_fr_h_idx, i)
 
     peg_pile = hand()
     pile_score = Int[]
@@ -470,9 +478,9 @@ for i in 1:1000000
 
     while length(hand1.cards) + length(hand2.cards) > 0
         if sum(turn) % 2 == 0
-            peg_random(hand2, peg_pile, pile_score, full_rand_s_card, full_rand_s_reason, passed_p1, passed_p2, turn)
+            peg_random(hand2, peg_pile, pile_score, full_rand_s_card, full_rand_s_reason, full_rand_h_idx, passed_p1, passed_p2, turn, i)
         else
-            peg_random(hand1, peg_pile, pile_score, full_rand_s_card, full_rand_s_reason, passed_p1, passed_p2, turn)
+            peg_random(hand1, peg_pile, pile_score, full_rand_s_card, full_rand_s_reason, full_rand_h_idx, passed_p1, passed_p2, turn, i)
         end
     end
 end
@@ -531,7 +539,11 @@ end
 ###########################################################
 s_card = Int[]
 s_reason = String[]
-@time for i in 1:1000000
+h_idx = Int[]
+p1_hands = String[]
+p2_hands = String[]
+all_h_idx = Int[]
+@time for i in 1:10000000
     cribbage_deck = deck()
     shuffle!(cribbage_deck)
 
@@ -545,6 +557,10 @@ s_reason = String[]
     h2_combns = combinations(hand2.cards, 4) |> collect
     hand1 = score_hand(h1_combns)
     hand2 = score_hand(h2_combns)
+
+    push!(p1_hands, join(hand1.cards))
+    push!(p2_hands, join(hand2.cards))
+    push!(all_h_idx, i)
 
     peg_pile = hand()
     pile_score = Int[]
@@ -574,9 +590,9 @@ s_reason = String[]
 
     while length(hand1.cards) + length(hand2.cards) > 0
         if sum(turn) % 2 == 0
-            peg(hand2, peg_pile, pile_score, s_card, s_reason, passed_p1, passed_p2, turn)
+            peg(hand2, peg_pile, pile_score, s_card, s_reason, h_idx, passed_p1, passed_p2, turn, i)
         else
-            peg(hand1, peg_pile, pile_score, s_card, s_reason, passed_p1, passed_p2, turn)
+            peg(hand1, peg_pile, pile_score, s_card, s_reason, h_idx, passed_p1, passed_p2, turn, i)
         end
     end
 end
@@ -584,6 +600,8 @@ end
 ###########################################################
 # WRITE OUT RESULTS
 ###########################################################
-CSV.write("full_random_prelim.csv", DataFrame(score_card = full_rand_s_card, score_reason = full_rand_s_reason))
-CSV.write("random_hand_control_data_prelim.csv", DataFrame(score_card = rh_s_card, score_reason = rh_s_reason))
-CSV.write("prelim_hand_data.csv", DataFrame(score_card = s_card, score_reason = s_reason))
+CSV.write("D:/Projects/julia_plays_cribbage/full_random_card_scores.csv", DataFrame(score_card = full_rand_s_card, score_reason = full_rand_s_reason, h_idx = full_rand_h_idx))
+CSV.write("D:/Projects/julia_plays_cribbage/full_random_hands.csv", DataFrame(p1_hand = fr_p1_hands, p2_hand = fr_p2_hands, h_idx = all_fr_h_idx))
+#CSV.write("random_hand_control_data_prelim.csv", DataFrame(score_card = rh_s_card, score_reason = rh_s_reason))
+CSV.write("D:/Projects/julia_plays_cribbage/strategy_score_data.csv", DataFrame(score_card = s_card, score_reason = s_reason, h_idx = h_idx))
+CSV.write("D:/Projects/julia_plays_cribbage/strategy_hands.csv", DataFrame(p1_hand = p1_hands, p2_hand = p2_hands, h_idx = all_h_idx))
